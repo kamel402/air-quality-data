@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Heatmaps</title>
+    <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+
+    <div id="tab">
+        <button onclick="hideTable()" id="close" class="btn btn-light">close</button>
+        <table id="table" class="table" style="max-width: 480px; margin: auto; margin-bottom: 30px">
+            <thead>
+                <tr>
+                    <th scope="col">timestamp</th>
+                    <th scope="col">latitide</th>
+                    <th scope="col">longitude</th>
+                    <th scope="col">pm2.5</th>
+                    <th scope="col">pm10</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+    <style>
+        #tab {
+            overflow: scroll;
+            font-size: small;
+            right: 0px;
+            ;
+            margin: 10px;
+            z-index: 100;
+            background-color: #fff;
+            opacity: 0.80;
+            position: absolute;
+            display: inline-block;
+            color: blue;
+            width: 30%;
+            max-width: 450px;
+            height: calc(100% - 20px);
+            stroke: 2px;
+            border-radius: 10px;
+            padding: 10px;
+            padding-top: 20px;
+            display: none;
+        }
+
+        #close {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            z-index: 105;
+            margin: 10px;
+        }
+
+        /* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+        #map {
+            left: 0px;
+            display: inline-block;
+            position: absolute;
+            height: 100%;
+            /* width: calc(100% - 450px) */
+            width: 100%;
+        }
+
+        /* Optional: Makes the sample page fill the window. */
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            left: 0;
+            top: 0;
+        }
+
+        #floating-panel {
+            position: absolute;
+            top: 10px;
+            left: 25%;
+            z-index: 5;
+            background-color: #fff;
+            padding: 10px;
+            border: 1px solid #999;
+            text-align: center;
+            font-family: 'Roboto', 'sans-serif';
+            line-height: 30px;
+            padding-left: 10px;
+            border-radius: 10px;
+        }
+
+        #floating-panel {
+            background-color: #fff;
+            border: 0px solid #999;
+            left: 10%;
+            padding: 5px;
+            position: absolute;
+            top: 10px;
+            z-index: 5;
+            opacity: 0.80;
+        }
+
+        .form-check-input {
+            margin: 2px;
+        }
+
+        .form-check-inline {
+            margin: 2px;
+        }
+
+        #logo {
+            position: absolute;
+            max-height: 60px;
+            z-index: 10;
+            margin: 10px;
+        }
+
+        .legend {
+            position: absolute;
+            max-height: 100px;
+            z-index: 10;
+            left: 10px;
+            bottom: 10px;
+            opacity: 0.80;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="floating-panel">
+        <!--         <button onclick="toggleHeatmap()">Toggle Heatmap</button>
+        <button onclick="changeGradient()">Change gradient</button> -->
+        <!--         <button id='pm10' class="btn btn-light active" aria-pressed="true" type="button"
+            onclick="setSortingFor('pm10')">PM
+            10</button>
+        <button id='pm25' class="btn btn-light" type="button" onclick="setSortingFor('pm25')">PM 2.5</button> -->
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="inlineRadioOptions" id="inlineRadio1" value="option1"
+                onclick="setSortingFor('pm10')" checked>
+            <label class="form-check-label" for="inlineRadio1"> PM 10</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="inlineRadioOptions" id="inlineRadio2" value="option2"
+                onclick="setSortingFor('pm25')">
+            <label class="form-check-label" for="inlineRadio2"> PM 2.5</label>
+        </div>
+        <select class="custom-select my-1 mr-sm-2" id="selectBox" onchange="changeCenterOfMap()">
+            <option value="makkah">Saudi Arabia - Makkah</option>
+            <option selected value="dammam">Saudi Arabia - Dammam</option>
+            <option value="medina">Saudi Arabia - Medina</option>
+        </select>
+    </div>
+    <div>
+        <img id="logo" src="./logo.jpeg">
+    </div>
+    <img class="legend" id="legendPM10" src="./images/legendePm10.jpeg">
+    <img class="legend" style="display: none" id="legendPM25" src="./images/legendePm25.jpeg">
+    <div id="map"></div>
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDDe_igDjoRG1I2s4sMcqZkAJZGKUPG1Vc&libraries=visualization"></script>
+    <script src="./mam.web.min.js"></script>
+    <script src="./data.js"></script>
+    <script src="vendor/jquery/jquery.min.js"></script>
+    <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allData = data;
+
+        // This example requires the Visualization library. Include the libraries=visualization
+        // parameter when you first load the API. For example:
+
+        var iota = window.IOTA;
+        Mam.init('https://nodes.devnet.thetangle.org:443');
+        var map, heatmap, rootAndKeys;
+        var makkah = new google.maps.LatLng(21.466529, 39.954012);
+        var dammam = new google.maps.LatLng(26.403770, 50.039447);//
+        var medina = new google.maps.LatLng(24.522891, 39.577435);//
+        var data = [
+        ];
+        var pointArray = new google.maps.MVCArray(data);
+        var latestData;
+        var dataSan = [
+        ];
+        var currentData = [];
+        var sortingFor = 'pm10';
+        var point;
+        //var pointArray = new google.maps.MVCArray(data);
+        function changeCenterOfMap() {
+            var selectBox = document.getElementById("selectBox");
+            var lat, lng;
+            var selectedValue = selectBox.options[selectBox.selectedIndex].value;
+            if (selectedValue == 'makkah')
+                map.setCenter({ lat: makkah.lat(), lng: makkah.lng() });
+            if (selectedValue == 'dammam')
+                map.setCenter({ lat: dammam.lat(), lng: dammam.lng() });
+            if (selectedValue == 'medina')
+                map.setCenter({ lat: medina.lat(), lng: medina.lng() });
+
+        }
+
+        initMap(dammam);
+
+        function initMap(position) {
+            console.log("init Map")
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 15,
+                center: position,
+                mapTypeId: 'roadmap',
+                zoomControlOptions: {
+                    position: google.maps.ControlPosition.LEFT_CENTER
+                },
+                streetViewControl: true,
+                streetViewControlOptions: {
+                    position: google.maps.ControlPosition.LEFT_CENTER
+                },
+                fullscreenControlOptions: {
+                    position: google.maps.ControlPosition.LEFT_CENTER
+                },
+                mapTypeControl: true,
+                mapTypeControlOptions: {
+                    style: google.maps.MapTypeControlStyle.DEFAULT,
+                    position: google.maps.ControlPosition.BOTTOM_CENTER
+                }
+            });
+        }
+        google.maps.event.addListenerOnce(map, 'idle', function () {
+            updateGrid();
+        });
+
+        function scale(num, in_min, in_max, out_min, out_max) {
+            return (num - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+        }
+
+        let indizes = [];
+        let dataTable = [];
+        storeDataOnTable();
+        function storeDataOnTable() {
+            let j = 0;
+            let data = allData.data;
+            for (let i = 0; i < data.length; i++) {
+                if (data[i].data.latitude != undefined && data[i].data.longitude != undefined) {
+                    let coo = data[i].data.latitude + data[i].data.longitude;
+                    if (dataTable[coo] == undefined) {
+                        dataTable[coo] = data[i].data;
+                        indizes.push(coo);
+                    } else if (dataTable[coo].time < data[i].data) {
+                        dataTable[coo] = data[i].data;
+                    }
+                }
+            }
+            latestData = getLatestData();
+        }
+
+        function getLatestData() {
+            let latestData = [];
+            for (let i = 0; i < indizes.length; i++) {
+                latestData.push(dataTable[indizes[i]]);
+            }
+            return latestData;
+        }
+
+        function clearHeatmap() {
+            heatmap.setMap(null)
+        }
+
+        function pnpoly(nvert, vertx, verty, testx, testy) {
+            let i, j, c = false;
+            for (i = 0, j = nvert - 1; i < nvert; j = i++) {
+                if (((verty[i] > testy) != (verty[j] > testy)) &&
+                    (testx < (vertx[j] - vertx[i]) * (testy - verty[i]) / (verty[j] - verty[i]) + vertx[i]))
+                    c = !c;
+            }
+            return c;
+        }
+
+        setSortingFor('pm10');
+
+        function drawGrid(point, scl, width, height) {
+            map.data.forEach(function (feature) {
+                map.data.remove(feature);
+            });
+            for (let i = 0; i < height; i++) {
+                for (let j = 0; j < width; j++) {
+                    var outerCoords = [
+                        { lat: point.lat - (2 * i * scl) - scl, lng: point.lng + (2 * j * scl) + scl }, // north west
+                        { lat: point.lat - (2 * i * scl) - scl, lng: point.lng + (2 * j * scl) - scl }, // south west
+                        { lat: point.lat - (2 * i * scl) + scl, lng: point.lng + (2 * j * scl) - scl }, // south east
+                        { lat: point.lat - (2 * i * scl) + scl, lng: point.lng + (2 * j * scl) + scl }  // north east
+                    ];
+                    let vertx = [];
+                    let verty = [];
+                    vertx.push(outerCoords[0].lat);
+                    vertx.push(outerCoords[1].lat);
+                    vertx.push(outerCoords[2].lat);
+                    vertx.push(outerCoords[3].lat);
+                    verty.push(outerCoords[0].lng);
+                    verty.push(outerCoords[1].lng);
+                    verty.push(outerCoords[2].lng);
+                    verty.push(outerCoords[3].lng);
+                    let inside = false;
+                    for (let k = 0; k < currentData.length; k++) {
+                        if (pnpoly(4, vertx, verty, currentData[k].latitude, currentData[k].longitude)) {
+                            inside = true;
+                            break;
+                        }
+                    }
+                    if (inside) {
+                        map.data.add({
+                            geometry: new google.maps.Data.Polygon([outerCoords])
+                        });
+                    }
+
+                }
+            }
+        }
+        function setSortingFor(sorting) {
+
+
+            sortingFor = sorting
+
+            map.data.setStyle(feature => {
+                //Hier sollten wir dann einen Mittelwert bilden und die einzelnen Mittelwerte dann abbilden
+                let vertx = [];
+                let verty = [];
+                //let color = 'grey';
+                let color = "rgba(102, 255, 0, 0)";
+                let cumWeight = 0;
+                let counter = 0;
+                let strokeColor = "rgba(102, 255, 0, 0)";
+                for (let i = 0; i < feature.g.g[0].g.length; i++) {
+                    vertx.push(feature.g.g[0].g[i].lat())
+                    verty.push(feature.g.g[0].g[i].lng())
+                }
+                for (let i = 0; i < latestData.length; i++) {
+                    if (pnpoly(4, vertx, verty, latestData[i].latitude, latestData[i].longitude)) {
+                        counter++;
+                        if (sortingFor == 'pm10')
+                            cumWeight += Number(latestData[i].pm10);
+                        if (sortingFor == 'pm25')
+                            cumWeight += Number(latestData[i].pm25);
+                    }
+                }
+                if (counter != 0) {
+                    if (sortingFor == 'pm10') {
+                        document.getElementById("legendPM10").style.display = "block";
+                        document.getElementById("legendPM25").style.display = "none";
+                        strokeColor = 'white';
+                        let durchschnitt = cumWeight / counter;
+                        if (durchschnitt > 220)
+                            color = 'purple';
+                        else if (durchschnitt > 160.0)
+                            color = 'red';
+                        else if (durchschnitt > 120.0)
+                            color = 'orange';
+                        else if (durchschnitt > 80.0)
+                            color = 'yellow';
+                        else if (durchschnitt > 0.0)
+                            color = 'green';
+                    }
+                    if (sortingFor == 'pm25') {
+                        document.getElementById("legendPM10").style.display = "none";
+                        document.getElementById("legendPM25").style.display = "block";
+                        strokeColor = 'white';
+                        let durchschnitt = cumWeight / counter;
+                        if (durchschnitt > 120)
+                            color = 'purple';
+                        else if (durchschnitt > 80)
+                            color = 'red';
+                        else if (durchschnitt > 60)
+                            color = 'orange';
+                        else if (durchschnitt > 40)
+                            color = 'yellow';
+                        else if (durchschnitt > 0)
+                            color = 'green';
+                    }
+                }
+                return ({
+                    fillColor: color,
+                    strokeColor: strokeColor,
+                    strokeWeight: 1
+                });
+            });
+        }
+
+        map.data.addListener('click', function (event) {
+            var x = document.getElementById("tab");
+            x.style.display = "block";
+            let vertx = [];
+            let verty = [];
+            for (let i = 0; i < event.feature.g.g[0].g.length; i++) {
+                vertx.push(event.feature.g.g[0].g[i].lat())
+                verty.push(event.feature.g.g[0].g[i].lng())
+            }
+            let wholeData = allData.data
+            $('#table').html('<table id="table" class="table" style="max-width: 480px; margin: auto; margin-bottom: 30px"> <tr> <th scope="col">timestamp</th> <th scope="col">latitide</th> <th scope="col">longitude</th> <th scope="col">pm2.5</th> <th scope="col">pm10</th> </tr> </thead > <tbody> </tbody> </table > ');
+            for (let i = 0; i < wholeData.length; i++) {
+                if (pnpoly(4, vertx, verty, wholeData[i].data.latitude, wholeData[i].data.longitude)) {
+                    let timeStamp = wholeData[i].data.timestamp.toString();
+                    let formattedTime;
+                    if (timeStamp.length == 14) {
+                        formattedTime = timeStamp.substr(0, 4) + "-" + timeStamp.substr(4, 2) + "-" + timeStamp.substr(6, 2) + " " + timeStamp.substr(8, 2) + ":" + timeStamp.substr(10, 2) + ":" + timeStamp.substr(12, 2);
+                    } else {
+                        var date = new Date(wholeData[i].time);
+                        var year = date.getFullYear();
+                        var month = ("0" + (date.getMonth() + 1)).substr(-2);
+                        var day = ("0" + date.getDate()).substr(-2);
+                        var hour = ("0" + date.getHours()).substr(-2);
+                        var minutes = ("0" + date.getMinutes()).substr(-2);
+                        var seconds = ("0" + date.getSeconds()).substr(-2);
+                        formattedTime = year + "-" + month + "-" + day + " " + hour + ":" + minutes + ":" + seconds;
+                    }
+                    $('#table').find('tbody:last').append('<tr><td> ' + formattedTime + '</td><td> ' + wholeData[i].data.latitude + '</td><td> ' + wholeData[i].data.longitude + '</td><td> ' + wholeData[i].data.pm25 + '</td><td> ' + wholeData[i].data.pm10 + '</td></tr>');
+                }
+            }
+        });
+        map.addListener('center_changed', function () {
+            updateGridWithOldValues();
+        });
+        map.addListener('zoom_changed', function () {
+            updateGrid();
+        });
+
+        function getCurrentData(ne, sw) {
+            currentData = [];
+            for (let i = 0; i < latestData.length; i++) {
+                let vertx = [];
+                let verty = [];
+                vertx.push(ne.lat());
+                vertx.push(ne.lat());
+                vertx.push(sw.lat());
+                vertx.push(sw.lat());
+                verty.push(sw.lng());
+                verty.push(ne.lng());
+                verty.push(ne.lng());
+                verty.push(sw.lng());
+
+                if (pnpoly(4, vertx, verty, latestData[i].latitude, latestData[i].longitude)) {
+                    currentData.push(latestData[i]);
+                }
+            }
+        }
+
+        function updateGridWithOldValues() {
+            var bounds = map.getBounds();
+            var ne = bounds.getNorthEast();
+            var sw = bounds.getSouthWest();
+            var width = Math.abs(ne.lat() - sw.lat());
+            var height = Math.abs(ne.lng() - sw.lng());
+            var new_point = {
+                lat: ne.lat(),
+                lng: sw.lng()
+            }
+
+            var scl = Math.sqrt(width * height) / Math.pow(width * height, 4);
+            var scl = width / 30;
+            var size = 20;
+
+            var gridHeight = Math.round(height / (scl * 2)) + 1;
+            var gridWidth = Math.round(width / (scl * 2)) + 1;
+            if (new_point.lat > point.lat) {
+                while (new_point.lat > point.lat) {
+                    point.lat += 2 * scl;
+                }
+            }
+            else if (new_point.lat < point.lat) {
+                while (new_point.lat < point.lat) {
+                    point.lat -= 2 * scl;
+                }
+            }
+            if (new_point.lng > point.lng) {
+                while (new_point.lng > point.lng) {
+                    point.lng += 2 * scl;
+                }
+            }
+            else if (new_point.lng < point.lng) {
+                while (new_point.lng < point.lng) {
+                    point.lng -= 2 * scl;
+                }
+            }
+
+            getCurrentData(ne, sw);
+            drawGrid(point, scl, gridHeight, gridWidth);
+        }
+
+        function updateGrid() {
+            var bounds = map.getBounds();
+            var ne = bounds.getNorthEast();
+            var sw = bounds.getSouthWest();
+            var width = Math.abs(ne.lat() - sw.lat());
+            var height = Math.abs(ne.lng() - sw.lng());
+            point = {
+                lat: ne.lat(),
+                lng: sw.lng()
+            }
+            var scl = Math.sqrt(width * height) / Math.pow(width * height, 4);
+            var scl = width / 30;
+            var size = 20;
+
+            var gridHeight = Math.round(height / (scl * 2)) + 1;
+            var gridWidth = Math.round(width / (scl * 2)) + 1;
+            getCurrentData(ne, sw);
+            drawGrid(point, scl, gridHeight, gridWidth);
+        }
+        function hideTable() {
+            var x = document.getElementById("tab");
+            x.style.display = "none";
+        }
+
+
+
+    </script>
+
+</body>
+
+</html>
